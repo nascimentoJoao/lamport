@@ -1,0 +1,29 @@
+{
+  "name": "lamport",
+  "version": "1.0.0",
+  "description": "Terceiro trabalho da disciplina de Programação Distribuída",
+  "main": "dist/app.ts",
+  "dependencies": {
+    "aws-sdk": "^2.793.0",
+    "dotenv": "^8.2.0"
+  },
+  "devDependencies": {
+    "tslint": "^6.1.3",
+    "typescript": "^4.0.5"
+  },
+  "scripts": {
+    "start": "tsc && node dist/app.js",
+    "tsc": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nascimentoJoao/lamport.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nascimentoJoao/lamport/issues"
+  },
+  "homepage": "https://github.com/nascimentoJoao/lamport#readme"
+}
