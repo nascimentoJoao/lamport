@@ -1,0 +1,6 @@
+id host port chance
+id: inteiro que identifica o processo
+host: endereço do processo
+port: porta do processo
+chance: probabilidade entre 0 e 1 da ocorrencia de um evento de envio de mensagem. (0.2 => 20%, 0.8 => 80%)
+
