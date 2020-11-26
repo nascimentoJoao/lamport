@@ -3,39 +3,44 @@ import { AwsClient } from "./aws/AwsClient";
 import 'dotenv/config';
 import fs from 'fs';
 import { INode } from "./interfaces/INode";
+import { NodeRole } from "./enums/NodeRoles";
+import { shuffle } from "./utils/Utils";
 
-const nodeInfo = process.argv[2];
 const allNodes: INode[] = [];
+const nodeId : number = Number.parseInt(process.argv[2]);
+const nodeRole : string = process.argv[3];
 
-fs.readFile('./src/assets/input.txt', 'utf8', function (err, data) {
-  if (err) {
-    return console.log(err);
-  }
+const configData = fs.readFileSync('./src/assets/input.txt', {encoding: 'utf8'}).toString();
 
-  data.split('\n').forEach((line, index) => {
+configData.split('\n').forEach((line, index) => {
+  if (index === 0) return;
+  
+  const lineId = Number.parseInt(line.split(' ')[0]); 
+  if (lineId === nodeId) return;
 
-    if (index === 0) {
-      return;
-    }
-
-    allNodes.push(<INode>{
-      id: Number.parseInt(line.split(' ')[0]),
-      host: line.split(' ')[1],
-      port: Number.parseInt(line.split(' ')[2]),
-      chance: Number.parseFloat(line.split(' ')[3])
-    });
+  const data = line.split(' ');
+  allNodes.push(<INode> {
+    id: Number.parseInt(data[0]),
+    host: data[1],
+    port: Number.parseInt(data[2]),
+    chance: Number.parseFloat(data[3])
   });
-
-  console.log(allNodes);
 });
 
-const randomNumber = Math.floor(Math.random() * 11);
-const randomNode = Math.floor(Math.random() * 5);
+if (nodeRole && nodeRole === NodeRole.AUTH) {
+  broadcast(allNodes);
+}
 
-if (randomNumber > allNodes[randomNode].chance * 10) {
+const randomNumber = Math.floor(Math.random() * 11);
+const randomNode = shuffle(allNodes.map(node => node.id))[0];
+const chosenNode = allNodes.find(node => node.id === randomNode);
+
+if (randomNumber >= chosenNode.chance * 10) {
   //Incrementa relogio
+  console.log(`Para chance ${randomNumber} contra a chance de nodo ${chosenNode.chance * 10}, INCREMENTA O RELOGIO.`);
 } else {
   // envia mensagem para o nodo sorteado
+  console.log(`Para chance ${randomNumber} contra o nodo de chance ${chosenNode.chance * 10}, ENVIA MENSAGEM PARA NODO SORTEADO.`);
 }
 
 //Inicia execução
@@ -77,3 +82,7 @@ milissegundos, i é o ID do nodo local, c é o valor do relógio lógico enviado
 //   }
 // });
 
+
+function broadcast(nodes : INode[]) {
+  console.log('BROADCASTING SHIT')
+}
