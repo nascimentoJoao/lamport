@@ -1,16 +1,29 @@
-import { S3 } from "aws-sdk";
-import { AwsClient } from "./aws/AwsClient";
 import 'dotenv/config';
 import fs from 'fs';
+import dgram from 'dgram';
+import { Node } from "./objects/Node";
 import { INode } from "./interfaces/INode";
 import { NodeRole } from "./enums/NodeRoles";
 import { shuffle } from "./utils/Utils";
+import {ISentMessage} from './interfaces/ISentMessage';
 
+
+const server = dgram.createSocket('udp4');
 const allNodes: INode[] = [];
 const nodeId : number = Number.parseInt(process.argv[2]);
 const nodeRole : string = process.argv[3];
-
 const configData = fs.readFileSync('./src/assets/input.txt', {encoding: 'utf8'}).toString();
+
+server.bind(1234, () => server.addMembership('233.255.255.255'));
+
+server.on('listening', () => {
+  const address = server.address();
+  console.log(`Listening ${address.address}:${address.port}`);
+});
+
+server.on('message', (msg, rinfo) => {
+  console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
+});
 
 configData.split('\n').forEach((line, index) => {
   if (index === 0) return;
@@ -82,7 +95,7 @@ milissegundos, i é o ID do nodo local, c é o valor do relógio lógico enviado
 //   }
 // });
 
-
-function broadcast(nodes : INode[]) {
-  console.log('BROADCASTING SHIT')
+function sendMessage(node: Node, message: ISentMessage): void {
+  const buffer = Buffer.from(JSON.stringify(message))
+  server.send(buffer, node.port, node.host)
 }

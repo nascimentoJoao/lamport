@@ -1,3 +1,5 @@
+import {ISentMessage} from './ISentMessage';
+
 export interface INode {
     id: number;
     host: string;
