@@ -17,7 +17,6 @@ const configData = fs.readFileSync('./src/assets/input.txt', { encoding: 'utf8' 
 const isAuthority = nodeRole && nodeRole === NodeRole.AUTH;
 const canLamportStart = { status: false };
 const localLamportClock = { count: 0 };
-const nodeActions = { count: 0 };
 
 const PORT = 30000;
 const MULTICAST_ADDR = '224.0.0.114';
@@ -28,16 +27,16 @@ let nodeData: INode;
   configData.split('\n').forEach((line, index) => {
     if (index === 0) return;
     const data = line.split(' ');
-  
+
     const newNode = {
       id: Number.parseInt(data[0]),
       host: data[1],
       port: Number.parseInt(data[2]),
       chance: Number.parseFloat(data[3])
     };
-  
+
     allNodes.push(newNode);
-  
+
     if (newNode.id == nodeId) {
       nodeData = newNode;
     }
@@ -52,51 +51,98 @@ let nodeData: INode;
     const address = server.address();
     console.log(`Listening ${address.address}:${address.port}`);
   });
-  
+
   multicast.on('listening', () => {
     multicast.addMembership(MULTICAST_ADDR);
   });
 
-  multicast.on('message', (msg, rinfo) =>{
-    console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
+  multicast.on('message', async (msg, rinfo) => {
+    // console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
     const parsedMessage = JSON.parse(msg.toString());
 
     if (parsedMessage.status === 'multicast') {
       canLamportStart.status = true;
-      console.log('multicast caralhooooo');
+      for (let i = 0; i < 100; i++) {
+
+        const randomTimeout = between(500, 1000);
+        await sleep(randomTimeout);
+
+        startNodeAction();
+      }
     }
   });
-  
+
   server.on('message', (msg, rinfo) => {
-    console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
-  
     const messageToString = msg.toString();
     const parsedMessage = JSON.parse(messageToString);
 
-    console.log(messageToString);
-  
     if (parsedMessage.status === 'multicast') {
       canLamportStart.status = true;
-  
-      console.log('multicast caralhooooo');
     }
-  
+
     if (parsedMessage.status === 'send') {
-      console.log('hora de escrever no arquivo');
+
+      const receivedLamportClock = Number.parseInt(parsedMessage.c.slice(0, -1));
+
+      if(receivedLamportClock > localLamportClock.count) {
+        localLamportClock.count = receivedLamportClock + 1;
+      }
+
       const receivedMessage = {
         m: Date.now(),
         i: `${nodeData.id}`,
+        c: localLamportClock.count,
+        s: parsedMessage.i,
+        t: receivedLamportClock
       };
+
+      const message = `${receivedMessage.m} ${receivedMessage.i} ${receivedMessage.c} ${receivedMessage.s} ${receivedMessage.t}\n`;
+
+      fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
+        if (err) throw err;
+      });
+
     }
   });
 })();
 
+if (isAuthority) {
+  recursiveReadLine();
+}
+
+function recursiveReadLine() {
+  const input = readLine.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  input.question('Se você é o lider, digite: \'multicast\' para enviar a mensagem para todos os conectados. Caso contrário, aguarde.\n\n', function (answer) {
+    if (answer.toLowerCase() == 'multicast' && isAuthority) {
+      console.log(`Começando a sincronização!`);
+
+      const multicastMessage = { status: 'multicast' };
+      const stringfied = JSON.stringify(multicastMessage);
+
+      server.send(Buffer.from(stringfied), PORT, MULTICAST_ADDR);
+    } else {
+      console.log('Não tem permissão para executar isso!');
+    }
+
+    recursiveReadLine();
+  });
+}
+
+function sendMessage(node: Node, message: ISentMessage): void {
+  const buffer = Buffer.from(JSON.stringify(message))
+  server.send(buffer, node.port, node.host)
+}
+
+function startNodeAction() {
   const randomNumber = Math.floor(Math.random() * 11);
   const randomNode = shuffle(allNodes.map(node => node.id))[0];
   const chosenNode = allNodes.find(node => node.id === randomNode);
 
   if (randomNumber >= chosenNode.chance * 10) {
-    //Incrementa relogio
     localLamportClock.count++;
 
     const objectOfLocalMessage = {
@@ -113,8 +159,6 @@ let nodeData: INode;
     });
 
   } else {
-    // envia mensagem para o nodo sorteado
-
     const objectOfMessage = {
       status: 'send',
       m: Date.now(),
@@ -127,47 +171,25 @@ let nodeData: INode;
 
     fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
       if (err) throw err;
-      console.log("It's saved!");
     });
 
-    const jsonStrinfied = JSON.stringify(objectOfMessage);
+    const jsonStringfied = JSON.stringify(objectOfMessage);
 
-    server.send(Buffer.from(jsonStrinfied), chosenNode.port, chosenNode.host, (error) => {
+    server.send(Buffer.from(jsonStringfied), chosenNode.port, chosenNode.host, (error) => {
       if (error) {
-        console.log('Erro ao enviar mensagem para o nodo.')
+        console.log(`Erro ao enviar mensagem para o nodo ${chosenNode.id}.`);
         throw error;
-      } else {
-        console.log('deu tudo certo com o envio de mensagem');
       }
     });
   }
-
-let input = readLine.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-
-var recursiveReadLine = function () {
-  input.question('Se você é o lider, digite: \'broadcast\' para enviar a mensagem para todos os conectados. Caso contrário, aguarde.\n\n', function (answer) {
-    input.pause();
-    if (answer.toLowerCase() == 'broadcast' && isAuthority) {
-      console.log('Broadcastou pra geral');
-
-      const multicastMessage = { status: 'multicast' };
-      const stringfied = JSON.stringify(multicastMessage);
-
-      server.send(Buffer.from(stringfied), PORT, MULTICAST_ADDR);
-    } else {
-      console.log('Não tem permissão para executar isso!');
-    }
-
-    recursiveReadLine();
-  });
 }
 
-recursiveReadLine();
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-function sendMessage(node: Node, message: ISentMessage): void {
-  const buffer = Buffer.from(JSON.stringify(message))
-  server.send(buffer, node.port, node.host)
+function between(min, max) {  
+  return Math.floor(
+    Math.random() * (max - min) + min
+  )
 }
