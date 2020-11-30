@@ -13,7 +13,15 @@ const multicast = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 const allNodes: INode[] = [];
 const nodeId: number = Number.parseInt(process.argv[2]);
 const nodeRole: string = process.argv[3];
-const configData = fs.readFileSync('./src/assets/input.txt', { encoding: 'utf8' }).toString();
+
+const environment: string = process.argv[4];
+const file = { name: 'input.txt' };
+
+if(environment === 'vm') {
+  file.name = 'input-vm.txt';
+}
+
+const configData = fs.readFileSync(`./src/assets/${file.name}`, { encoding: 'utf8' }).toString();
 const isAuthority = nodeRole && nodeRole === NodeRole.AUTH;
 const canLamportStart = { status: false };
 const localLamportClock = { count: 0 };
@@ -152,7 +160,7 @@ function startNodeAction() {
   const randomNode = shuffle(allNodesExceptMe.map(node => node.id))[0];
   const chosenNode = allNodes.find(node => node.id === randomNode);
 
-  if (randomNumber >= chosenNode.chance * 10) {
+  if (randomNumber >= nodeData.chance * 10) {
     localLamportClock.count++;
 
     const objectOfLocalMessage = {
