@@ -5,95 +5,161 @@ import { Node } from "./objects/Node";
 import { INode } from "./interfaces/INode";
 import { NodeRole } from "./enums/NodeRoles";
 import { shuffle } from "./utils/Utils";
-import {ISentMessage} from './interfaces/ISentMessage';
+import { ISentMessage } from './interfaces/ISentMessage';
+import readLine from 'readline';
 
-
-const server = dgram.createSocket('udp4');
+const server = dgram.createSocket({ type: 'udp4' });
 const allNodes: INode[] = [];
-const nodeId : number = Number.parseInt(process.argv[2]);
-const nodeRole : string = process.argv[3];
-const configData = fs.readFileSync('./src/assets/input.txt', {encoding: 'utf8'}).toString();
+const nodeId: number = Number.parseInt(process.argv[2]);
+const nodeRole: string = process.argv[3];
+const configData = fs.readFileSync('./src/assets/input.txt', { encoding: 'utf8' }).toString();
+const isAuthority = nodeRole && nodeRole === NodeRole.AUTH;
+const canLamportStart = { status: false };
+const localLamportClock = { count: 0 };
+const nodeActions = { count: 0 };
 
-server.bind(1234, () => server.addMembership('233.255.255.255'));
+const PORT = 20000;
+const MULTICAST_ADDR = '224.0.0.114';
 
-server.on('listening', () => {
-  const address = server.address();
-  console.log(`Listening ${address.address}:${address.port}`);
-});
-
-server.on('message', (msg, rinfo) => {
-  console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
-});
+let nodeData: INode;
 
 configData.split('\n').forEach((line, index) => {
   if (index === 0) return;
-  
-  const lineId = Number.parseInt(line.split(' ')[0]); 
-  if (lineId === nodeId) return;
-
   const data = line.split(' ');
-  allNodes.push(<INode> {
+
+  const newNode = {
     id: Number.parseInt(data[0]),
     host: data[1],
     port: Number.parseInt(data[2]),
     chance: Number.parseFloat(data[3])
-  });
+  };
+
+  allNodes.push(newNode);
+
+  if (newNode.id == nodeId) {
+    nodeData = newNode;
+  }
+
 });
 
-if (nodeRole && nodeRole === NodeRole.AUTH) {
-  broadcast(allNodes);
+server.bind(nodeData.port, nodeData.host);
+
+server.on('listening', () => {
+  const address = server.address();
+  console.log(`Listening ${address.address}:${address.port}`);
+  // // server.bind(PORT);
+  server.addMembership(MULTICAST_ADDR, nodeData.host);
+});
+
+
+server.on('message', (msg, rinfo) => {
+  console.log(`Received: ${msg} from ${rinfo.address}:${rinfo.port}`);
+
+  const messageToString = msg.toString();
+  const parsedMessage = JSON.parse(messageToString);
+
+  console.log('PARSED: ', parsedMessage);
+  //mensagem de broadcast:
+  //{ status: 1, info: 'broadcast' };
+
+  console.log(messageToString);
+
+  if (parsedMessage.status === 'multicast') {
+    canLamportStart.status = true;
+
+    console.log('multicast caralhooooo');
+  }
+
+  if (parsedMessage.status === 'send') {
+    console.log('hora de escrever no arquivo');
+    const receivedMessage = {
+      m: Date.now(),
+      i: `${nodeData.id}`,
+    };
+  }
+
+});
+
+  const randomNumber = Math.floor(Math.random() * 11);
+  const randomNode = shuffle(allNodes.map(node => node.id))[0];
+  const chosenNode = allNodes.find(node => node.id === randomNode);
+
+  if (randomNumber >= chosenNode.chance * 10) {
+    //Incrementa relogio
+    localLamportClock.count++;
+
+    const objectOfLocalMessage = {
+      status: 'local',
+      m: Date.now(),
+      i: nodeData.id,
+      c: `${localLamportClock.count}${nodeData.id}`
+    };
+
+    const message = `${objectOfLocalMessage.m} ${objectOfLocalMessage.i} ${objectOfLocalMessage.c}\n`;
+
+    fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
+      if (err) throw err;
+    });
+
+  } else {
+    // envia mensagem para o nodo sorteado
+
+    const objectOfMessage = {
+      status: 'send',
+      m: Date.now(),
+      i: nodeData.id,
+      c: `${localLamportClock.count}${nodeData.id}`,
+      d: chosenNode.id
+    }
+
+    const message = `${objectOfMessage.m} ${objectOfMessage.i} ${objectOfMessage.c} ${objectOfMessage.d}\n`;
+
+    fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
+      if (err) throw err;
+      console.log("It's saved!");
+    });
+
+    const jsonStrinfied = JSON.stringify(objectOfMessage);
+
+    server.send(Buffer.from(jsonStrinfied), chosenNode.port, chosenNode.host, (error) => {
+      if (error) {
+        console.log('Erro ao enviar mensagem para o nodo.')
+        throw error;
+      } else {
+        console.log('deu tudo certo com o envio de mensagem');
+      }
+    });
+  }
+
+
+console.log('FIM!');
+
+let input = readLine.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+var recursiveReadLine = function () {
+  input.question('Se você é o lider, digite: \'broadcast\' para enviar a mensagem para todos os conectados. Caso contrário, aguarde.\n\n', function (answer) {
+    input.pause();
+    if (answer.toLowerCase() == 'broadcast' && isAuthority) {
+      console.log('Broadcastou pra geral');
+
+      const multicastMessage = { status: 'multicast' };
+      const stringfied = JSON.stringify(multicastMessage);
+
+      //MULTICAST AINDA NÃO ESTÁ OK
+      //server.send(Buffer.from(stringfied), 20000, 'endereco_broadcast');
+      // return;
+    } else {
+      console.log('Não tem permissão para executar isso!');
+    }
+
+    recursiveReadLine();
+  });
 }
 
-const randomNumber = Math.floor(Math.random() * 11);
-const randomNode = shuffle(allNodes.map(node => node.id))[0];
-const chosenNode = allNodes.find(node => node.id === randomNode);
-
-if (randomNumber >= chosenNode.chance * 10) {
-  //Incrementa relogio
-  console.log(`Para chance ${randomNumber} contra a chance de nodo ${chosenNode.chance * 10}, INCREMENTA O RELOGIO.`);
-} else {
-  // envia mensagem para o nodo sorteado
-  console.log(`Para chance ${randomNumber} contra o nodo de chance ${chosenNode.chance * 10}, ENVIA MENSAGEM PARA NODO SORTEADO.`);
-}
-
-//Inicia execução
-
-//Aguarda mensagem multicast sinalizando que pode iniciar
-
-//Gera um número aleatorio entre 1 e 10
-//Pega probabilidade, verifica o número sorteado
-//0 1 2 3 4 5 6 7 8 9 - probabilidade de 0.4 -> 0, 1, 2, 3
-// Se aleatorio entre [0, 3] -> envia mensagem
-// se aleatorio entre [4, 9] -> incrementa relogio
-
-// for 0 .. 99 ->
-// calcularAleatorio();
-// verificarAcaoSerRealizada();
-//    enviaMensagem() ou incrementaLamport();
-//    m i c s d = 123219739123912 1 541  
-/**
- * Envio de mensagem: m i c s d, onde m é o tempo do computador local em
-milissegundos, i é o ID do nodo local, c é o valor do relógio lógico enviado
-(relógio concatenado com o ID), d é o ID do nodo destinatário da mensagem;
- */
-
-
-
-// var bucketParams = {
-//   Bucket : process.env.AWS_BUCKET_NAME,
-//   Key: process.env.AWS_OBJECT_NAME
-// };
-
-// const awsService : S3 = AwsClient.getInstance().service;
-
-// // Call S3 to obtain a list of the objects in the bucket
-// awsService.getObject(bucketParams, function(err, data) {
-//   if (err) {
-//     console.log("Error", err);
-//   } else {
-//     console.log(data.Body.toString());
-//   }
-// });
+recursiveReadLine();
 
 function sendMessage(node: Node, message: ISentMessage): void {
   const buffer = Buffer.from(JSON.stringify(message))
