@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import fs from 'fs';
 import dgram from 'dgram';
 import { Node } from "./objects/Node";
