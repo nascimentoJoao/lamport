@@ -69,6 +69,7 @@ let nodeData: INode;
 
         startNodeAction();
       }
+      return;
     }
   });
 
@@ -96,7 +97,8 @@ let nodeData: INode;
         t: receivedLamportClock
       };
 
-      const message = `${receivedMessage.m} ${receivedMessage.i} ${receivedMessage.c} ${receivedMessage.s} ${receivedMessage.t}\n`;
+      const message = `${receivedMessage.m} ${receivedMessage.i} r ${receivedMessage.c} ${receivedMessage.s} ${receivedMessage.t}\n`;
+      console.log(message);
 
       fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
         if (err) throw err;
@@ -139,7 +141,15 @@ function sendMessage(node: Node, message: ISentMessage): void {
 
 function startNodeAction() {
   const randomNumber = Math.floor(Math.random() * 11);
-  const randomNode = shuffle(allNodes.map(node => node.id))[0];
+  const allNodesExceptMe = [];
+
+  allNodes.map(node => {
+    if (node.id != nodeData.id) {
+      allNodesExceptMe.push(node);
+    }
+  });
+
+  const randomNode = shuffle(allNodesExceptMe.map(node => node.id))[0];
   const chosenNode = allNodes.find(node => node.id === randomNode);
 
   if (randomNumber >= chosenNode.chance * 10) {
@@ -152,7 +162,9 @@ function startNodeAction() {
       c: `${localLamportClock.count}${nodeData.id}`
     };
 
-    const message = `${objectOfLocalMessage.m} ${objectOfLocalMessage.i} ${objectOfLocalMessage.c}\n`;
+    const message = `${objectOfLocalMessage.m} ${objectOfLocalMessage.i} ${objectOfLocalMessage.c} l \n`;
+
+    console.log(message);
 
     fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
       if (err) throw err;
@@ -167,7 +179,9 @@ function startNodeAction() {
       d: chosenNode.id
     }
 
-    const message = `${objectOfMessage.m} ${objectOfMessage.i} ${objectOfMessage.c} ${objectOfMessage.d}\n`;
+    const message = `${objectOfMessage.m} ${objectOfMessage.i} ${objectOfMessage.c} s ${objectOfMessage.d}\n`;
+
+    console.log(message);
 
     fs.writeFile(`output_${nodeData.id}`, message, { flag: 'a' }, function (err) {
       if (err) throw err;
